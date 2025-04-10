@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/Venna12/taxi-booking.git'
+            }
+        }
+
+        stage('SAST - Semgrep') {
+            steps {
+                sh 'docker run --rm -v $(pwd):/src returntocorp/semgrep semgrep --config=auto /src'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t your-dockerhub/taxi-booking:latest .'
+                }
+            }
+        }
+
+        stage('Scan with Trivy') {
+            steps {
+                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image your-dockerhub/taxi-booking:latest'
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                      docker push your-dockerhub/taxi-booking:latest
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to EKS via Helm') {
+            steps {
+                sh 'helm upgrade --install taxi-booking ./helm/taxi-booking --set image.tag=latest'
+            }
+        }
+
+        stage('DAST - OWASP ZAP') {
+            steps {
+                sh 'docker run -v $(pwd):/zap/wrk/:rw owasp/zap2docker-stable zap-baseline.py -t http://your-app-url'
+            }
+        }
+
+        stage('OPA Policy Check') {
+            steps {
+                sh 'kubectl apply -f opa/policies/'
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
+
