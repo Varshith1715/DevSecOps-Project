@@ -1,67 +1,142 @@
 pipeline {
-    agent any
+  agent any
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git url: 'https://github.com/Venna12/taxi-booking.git'
-            }
-        }
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
+    string(name: 'NODE_IP', defaultValue: 'your-node-ip', description: 'Public IP of NodePort service')
+    string(name: 'RELEASE_NAME', defaultValue: 'taxi-booking', description: 'Helm release name')
+  }
 
-        stage('SAST - Semgrep') {
-            steps {
-                sh 'docker run --rm -v $(pwd):/src returntocorp/semgrep semgrep --config=auto /src'
-            }
-        }
+  environment {
+    IMAGE_NAME = "taxi-booking"
+    DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
+    DOCKERHUB_USER = 'Varshith999'
+    KUBE_NAMESPACE = "default"
+    CHART_PATH = "./web-app-chart"
+    NODE_PORT = "30080"
+  }
 
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    sh 'docker build -t your-dockerhub/taxi-booking:latest .'
-                }
-            }
-        }
-
-        stage('Scan with Trivy') {
-            steps {
-                sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image your-dockerhub/taxi-booking:latest'
-            }
-        }
-
-        stage('Push to DockerHub') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh """
-                      echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                      docker push your-dockerhub/taxi-booking:latest
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to EKS via Helm') {
-            steps {
-                sh 'helm upgrade --install taxi-booking ./helm/taxi-booking --set image.tag=latest'
-            }
-        }
-
-        stage('DAST - OWASP ZAP') {
-            steps {
-                sh 'docker run -v $(pwd):/zap/wrk/:rw owasp/zap2docker-stable zap-baseline.py -t http://your-app-url'
-            }
-        }
-
-        stage('OPA Policy Check') {
-            steps {
-                sh 'kubectl apply -f opa/policies/'
-            }
-        }
+  stages {
+    stage('Checkout Code') {
+      steps {
+        checkout scm
+      }
     }
 
-    post {
-        always {
-            cleanWs()
-        }
+    stage('Static Code Analysis - Semgrep') {
+      steps {
+        sh '''
+          echo "Running Semgrep..."
+          docker run --rm -v $(pwd):/src returntocorp/semgrep semgrep scan --config=auto /src
+        '''
+      }
     }
+
+    stage('Build Docker Image from Existing WAR') {
+      steps {
+        sh '''
+          echo "Using existing WAR file..."
+          WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
+
+          echo "Building Docker image..."
+          cp $WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
+          docker build -t $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG} .
+        '''
+      }
+    }
+
+    stage('Scan Docker Image - Trivy') {
+      steps {
+        sh '''
+          echo "Running Trivy scan with exit code on high/critical..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
+            --severity HIGH,CRITICAL --exit-code 1 $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG}
+        '''
+      }
+    }
+
+    stage('Push to DockerHub') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: "$DOCKERHUB_CREDENTIALS_ID", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+          sh '''
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker push $DOCKER_USERNAME/$IMAGE_NAME:${params.IMAGE_TAG}
+          '''
+        }
+      }
+    }
+
+    stage('Deploy to EKS using Helm') {
+      steps {
+        sh '''
+          echo "Deploying to EKS using Helm..."
+          helm upgrade --install ${params.RELEASE_NAME} $CHART_PATH \
+            --set image.repository=$DOCKERHUB_USER/$IMAGE_NAME \
+            --set image.tag=${params.IMAGE_TAG} \
+            --namespace $KUBE_NAMESPACE
+        '''
+      }
+    }
+
+    stage('Dynamic App Security Testing - OWASP ZAP') {
+      steps {
+        sh '''
+          echo "Running OWASP ZAP baseline scan..."
+          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
+            -t http://${params.NODE_IP}:$NODE_PORT -g gen.conf -r zap-report.html -x zap-report.xml \
+            -l FAIL --exit-zero || exit 1
+        '''
+      }
+    }
+
+    stage('Install OPA Gatekeeper') {
+      steps {
+        sh '''
+          echo "Installing OPA Gatekeeper if not already present..."
+          if ! kubectl get pods -n gatekeeper-system &> /dev/null; then
+            kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml
+            kubectl rollout status deployment/gatekeeper-controller-manager -n gatekeeper-system
+          else
+            echo "OPA Gatekeeper is already installed."
+          fi
+        '''
+      }
+    }
+
+    stage('Apply OPA Constraints & Templates') {
+      steps {
+        sh '''
+          echo "Applying OPA policies..."
+          kubectl apply -f opa-policies/privileged-template.yaml
+          kubectl apply -f opa-policies/privileged-constraint.yaml
+          kubectl apply -f opa-policies/registry-template.yaml
+          kubectl apply -f opa-policies/registry-constraint.yaml
+        '''
+      }
+    }
+
+    stage('OPA Gatekeeper Policy Check') {
+      steps {
+        sh '''
+          echo "Checking OPA Gatekeeper constraint violations..."
+          VIOLATIONS=$(kubectl get constrainttemplates -o json | jq '.items[] | .status?.totalViolations' | grep -v null | awk '$1 > 0')
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ Violations found by OPA Gatekeeper!"
+            exit 1
+          else
+            echo "✅ No OPA policy violations detected."
+          fi
+        '''
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ Pipeline completed successfully!"
+    }
+    failure {
+      echo "❌ Pipeline failed. Check the logs for details."
+    }
+  }
 }
-
