@@ -1,28 +1,83 @@
+# General Config
 variable "aws_region" {
-  description = "AWS region"
-  default     = "us-east-1"
+  description = "AWS region to deploy resources"
+  type        = string
 }
 
-variable "cluster_name" {
-  description = "EKS Cluster name"
-  default     = "taxi-booking-cluster"
+variable "name_prefix" {
+  description = "Prefix for naming resources"
+  type        = string
+}
+
+# VPC Variables
+variable "vpc_cidr_block" {
+  description = "CIDR block for VPC"
+  type        = string
+}
+
+variable "subnet_cidr_blocks_public" {
+  description = "CIDR blocks for public subnets"
+  type        = list(string)
+}
+
+variable "subnet_cidr_blocks_private" {
+  description = "CIDR blocks for private subnets"
+  type        = list(string)
+}
+
+# EKS Variables
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for EKS worker nodes"
+  type        = list(string)
+}
+
+variable "eks_cluster_desired_size" {
+  description = "Desired number of EKS worker nodes"
+  type        = number
+}
+
+variable "eks_cluster_max_size" {
+  description = "Max number of EKS worker nodes"
+  type        = number
+}
+
+variable "eks_cluster_min_size" {
+  description = "Min number of EKS worker nodes"
+  type        = number
+}
+
+variable "instance_type" {
+  description = "EC2 instance type for EKS worker nodes"
+  type        = string
+}
+
+# Jenkins EC2
+variable "jenkins_instance_type" {
+  description = "EC2 instance type for Jenkins"
+  type        = string
+}
+
+variable "availability_zones" {
+  description = "List of availability zones"
+  type        = list(string)
 }
 
 variable "vpc_cidr" {
-  default = "10.0.0.0/16"
+  description = "CIDR block for the VPC"
+  type        = string
 }
 
-variable "public_subnets" {
-  type    = list(string)
-  default = ["10.0.1.0/24", "10.0.2.0/24"]
+variable "public_subnet_cidrs" {
+  description = "List of CIDR blocks for public subnets"
+  type        = list(string)
 }
 
-variable "private_subnets" {
-  type    = list(string)
-  default = ["10.0.3.0/24", "10.0.4.0/24"]
+variable "key_name" {
+  type        = string
+  description = "Name of EC2 key pair"
 }
 
-variable "jenkins_key_name" {
-  description = "EC2 Key Pair for Jenkins SSH"
-  default     = "jenkins-key"
+variable "ami_id" {
+  description = "AMI ID for Jenkins EC2 instance"
+  type        = string
 }

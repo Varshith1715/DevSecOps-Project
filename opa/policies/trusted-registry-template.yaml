@@ -1,0 +1,20 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8strustedregistry
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sTrustedRegistry
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8strustedregistry
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not startswith(container.image, "docker.io")
+          msg := sprintf("Image '%v' is not from the trusted registry docker.io", [container.image])
+        }
+

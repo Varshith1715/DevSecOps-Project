@@ -1,0 +1,12 @@
+app:
+  name: taxi-booking
+
+replicaCount: 2
+
+image:
+  repository: Varshith999/taxi-booking
+  tag: "latest"
+
+service:
+  name: taxi-booking-svc
+  nodePort: 30080
