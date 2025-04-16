@@ -48,11 +48,15 @@ pipeline {
 
     stage('Scan Docker Image - Trivy') {
       steps {
-        sh """
-          echo "Running Trivy scan with exit code on high/critical..."
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 \${DOCKERHUB_USER}/\${IMAGE_NAME}:${params.IMAGE_TAG}
-        """
+        script {
+          def imageId = sh(script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}", returnStdout: true).trim()
+          echo "Scanning image ID: ${imageId}"
+          sh """
+            echo "Running Trivy scan with exit code on high/critical..."
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ${imageId}
+          """
+        }
       }
     }
 
