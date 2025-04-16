@@ -10,7 +10,7 @@ pipeline {
   environment {
     IMAGE_NAME = "taxi-booking"
     DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
-    DOCKERHUB_USER = 'Varshith999'
+    DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
     CHART_PATH = "./web-app-chart"
     NODE_PORT = "30080"
