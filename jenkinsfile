@@ -48,45 +48,45 @@ pipeline {
 
     stage('Scan Docker Image - Trivy') {
       steps {
-        sh '''
+        sh """
           echo "Running Trivy scan with exit code on high/critical..."
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
             --severity HIGH,CRITICAL --exit-code 1 $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG}
-        '''
+        """
       }
     }
 
     stage('Push to DockerHub') {
       steps {
         withCredentials([usernamePassword(credentialsId: "$DOCKERHUB_CREDENTIALS_ID", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-          sh '''
+          sh """
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push $DOCKER_USERNAME/$IMAGE_NAME:${params.IMAGE_TAG}
-          '''
+          """
         }
       }
     }
 
     stage('Deploy to EKS using Helm') {
       steps {
-        sh '''
+        sh """
           echo "Deploying to EKS using Helm..."
           helm upgrade --install ${params.RELEASE_NAME} $CHART_PATH \
             --set image.repository=$DOCKERHUB_USER/$IMAGE_NAME \
             --set image.tag=${params.IMAGE_TAG} \
             --namespace $KUBE_NAMESPACE
-        '''
+        """
       }
     }
 
     stage('Dynamic App Security Testing - OWASP ZAP') {
       steps {
-        sh '''
+        sh """
           echo "Running OWASP ZAP baseline scan..."
           docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
             -t http://${params.NODE_IP}:$NODE_PORT -g gen.conf -r zap-report.html -x zap-report.xml \
             -l FAIL --exit-zero || exit 1
-        '''
+        """
       }
     }
 
@@ -118,7 +118,7 @@ pipeline {
 
     stage('OPA Gatekeeper Policy Check') {
       steps {
-        sh '''
+        sh """
           echo "Checking OPA Gatekeeper constraint violations..."
           VIOLATIONS=$(kubectl get constrainttemplates -o json | jq '.items[] | .status?.totalViolations' | grep -v null | awk '$1 > 0')
           if [ -n "$VIOLATIONS" ]; then
@@ -127,7 +127,7 @@ pipeline {
           else
             echo "✅ No OPA policy violations detected."
           fi
-        '''
+        """
       }
     }
   }
