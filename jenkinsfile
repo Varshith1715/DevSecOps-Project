@@ -50,8 +50,8 @@ pipeline {
       steps {
         sh """
           echo "Running Trivy scan with exit code on high/critical..."
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \\
-            --severity HIGH,CRITICAL --exit-code 1 \${DOCKERHUB_USER}/\${IMAGE_NAME}:${params.IMAGE_TAG}
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 \${DOCKERHUB_USER}/\${IMAGE_NAME}:${params.IMAGE_TAG}
         """
       }
     }
@@ -71,9 +71,9 @@ pipeline {
       steps {
         sh """
           echo "Deploying to EKS using Helm..."
-          helm upgrade --install ${params.RELEASE_NAME} \${CHART_PATH} \\
-            --set image.repository=\${DOCKERHUB_USER}/\${IMAGE_NAME} \\
-            --set image.tag=${params.IMAGE_TAG} \\
+          helm upgrade --install ${params.RELEASE_NAME} \${CHART_PATH} \
+            --set image.repository=\${DOCKERHUB_USER}/\${IMAGE_NAME} \
+            --set image.tag=${params.IMAGE_TAG} \
             --namespace \${KUBE_NAMESPACE}
         """
       }
@@ -83,8 +83,8 @@ pipeline {
       steps {
         sh """
           echo "Running OWASP ZAP baseline scan..."
-          docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \\
-            -t http://${params.NODE_IP}:\${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \\
+          docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
+            -t http://${params.NODE_IP}:\${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \
             -l FAIL --exit-zero || exit 1
         """
       }
