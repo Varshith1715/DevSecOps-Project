@@ -34,14 +34,15 @@ pipeline {
 
     stage('Build Docker Image from Existing WAR') {
       steps {
-        sh '''
-          echo "Using existing WAR file..."
-          WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
-
-          echo "Building Docker image..."
-          cp $WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
-          docker build -t $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG} .
-        '''
+        script {
+          sh """
+            echo "Using existing WAR file..."
+            WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
+            echo "Building Docker image..."
+            cp \$WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
+            docker build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} .
+          """
+        }
       }
     }
 
