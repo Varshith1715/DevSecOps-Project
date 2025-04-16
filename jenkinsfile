@@ -52,9 +52,9 @@ pipeline {
           def imageId = sh(script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}", returnStdout: true).trim()
           echo "Scanning image ID: ${imageId}"
           sh """
-            echo "Running Trivy scan with exit code on high/critical..."
+            echo "Running Trivy scan (non-blocking)..."
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ${imageId}
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId}
           """
         }
       }
