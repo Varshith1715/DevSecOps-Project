@@ -12,7 +12,7 @@ pipeline {
     DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
     DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
-    CHART_PATH = "terraform/web-app-chart"
+    CHART_PATH = "env.WORKSPACE/terraform/web-app-chart"
     NODE_PORT = "30080"
   }
 
