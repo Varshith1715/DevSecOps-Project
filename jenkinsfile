@@ -12,7 +12,7 @@ pipeline {
     DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
     DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
-    CHART_PATH = "${env.WORKSPACE}/web-app-chart"
+    CHART_PATH = "terraform/web-app-chart"
     NODE_PORT = "30080"
   }
 
@@ -84,15 +84,15 @@ pipeline {
       steps {
         script {
           // Check if the chart directory exists in the workspace
-          def chartExists = fileExists("${env.WORKSPACE}/web-app-chart/Chart.yaml")
+          def chartExists = fileExists("${env.WORKSPACE}/terraform/web-app-chart/Chart.yaml")
           if (!chartExists) {
-            error "Helm chart directory not found at ${env.WORKSPACE}/web-app-chart"
+            error "Helm chart directory not found at ${env.WORKSPACE}/terraform/web-app-chart"
           }
 
           // Deploy using Helm with the correct chart path
           sh """
             echo "Deploying to EKS using Helm..."
-            helm upgrade --install ${params.RELEASE_NAME} ${env.WORKSPACE}/web-app-chart \
+            helm upgrade --install ${params.RELEASE_NAME} ${env.WORKSPACE}/terraform/web-app-chart \
               --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
               --set image.tag=${params.IMAGE_TAG} \
               --namespace ${KUBE_NAMESPACE}
