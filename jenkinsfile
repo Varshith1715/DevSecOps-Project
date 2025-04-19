@@ -107,10 +107,10 @@ pipeline {
       steps {
         sh '''
           echo "Applying OPA policies..."
-          kubectl apply -f opa-policies/privileged-template.yaml
-          kubectl apply -f opa-policies/privileged-constraint.yaml
-          kubectl apply -f opa-policies/registry-template.yaml
-          kubectl apply -f opa-policies/registry-constraint.yaml
+          kubectl apply -f opa/policies/privileged-template.yaml
+          kubectl apply -f opa/policies/privileged-constraint.yaml
+          kubectl apply -f opa/policies/trusted-registry-template.yaml
+          kubectl apply -f opa/policies/trusted-registry-constraint.yaml
         '''
       }
     }
