@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
-    string(name: 'NODE_IP', defaultValue: 'your-node-ip', description: 'Public IP of NodePort service')
+    string(name: 'NODE_IP', defaultValue: '98.81.156.48', description: 'Public IP of NodePort service')
     string(name: 'RELEASE_NAME', defaultValue: 'taxi-booking', description: 'Helm release name')
   }
 
