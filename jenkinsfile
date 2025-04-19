@@ -12,7 +12,7 @@ pipeline {
     DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
     DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
-    CHART_PATH = "env.WORKSPACE/terraform/web-app-chart"
+    CHART_PATH = "${env.WORKSPACE}/terraform/web-app-chart"
     NODE_PORT = "30080"
   }
 
@@ -20,6 +20,15 @@ pipeline {
     stage('Checkout Code') {
       steps {
         checkout scm
+      }
+    }
+
+    stage('Verify Workspace') {
+      steps {
+        sh """
+          echo "Verifying the workspace content..."
+          ls -al ${env.WORKSPACE}/terraform
+        """
       }
     }
 
