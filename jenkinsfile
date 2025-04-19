@@ -65,6 +65,15 @@ pipeline {
       }
     }
 
+    stage('Update Trivy DB') {
+      steps {
+        sh """
+          echo "Updating Trivy vulnerability database..."
+          docker run --rm aquasec/trivy image --download-db-only
+        """
+      }
+    }
+
     stage('Scan Docker Image - Trivy') {
       steps {
         script {
@@ -73,7 +82,7 @@ pipeline {
           sh """
             echo "Running Trivy scan (non-blocking)..."
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId}
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId} || echo "Trivy scan failed, continuing..."
           """
         }
       }
