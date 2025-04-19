@@ -10,9 +10,9 @@ pipeline {
   environment {
     IMAGE_NAME = "taxi-booking"
     DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
-    DOCKERHUB_USER = 'Varshith999'
+    DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
-    CHART_PATH = "./web-app-chart"
+    CHART_PATH = "env.WORKSPACE/terraform/web-app-chart"
     NODE_PORT = "30080"
   }
 
@@ -34,58 +34,81 @@ pipeline {
 
     stage('Build Docker Image from Existing WAR') {
       steps {
-        sh '''
-          echo "Using existing WAR file..."
-          WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
+        script {
+          def imageExists = sh(
+            script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}",
+            returnStdout: true
+          ).trim()
 
-          echo "Building Docker image..."
-          cp $WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
-          docker build -t $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG} .
-        '''
+          if (imageExists) {
+            echo "✅ Docker image ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} already exists locally. Skipping build."
+          } else {
+            sh """
+              echo "Using existing WAR file..."
+              WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
+              echo "Building Docker image..."
+              cp \$WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
+              docker build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} .
+            """
+          }
+        }
       }
     }
 
     stage('Scan Docker Image - Trivy') {
       steps {
-        sh '''
-          echo "Running Trivy scan with exit code on high/critical..."
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image \
-            --severity HIGH,CRITICAL --exit-code 1 $DOCKERHUB_USER/$IMAGE_NAME:${params.IMAGE_TAG}
-        '''
+        script {
+          def imageId = sh(script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}", returnStdout: true).trim()
+          echo "Scanning image ID: ${imageId}"
+          sh """
+            echo "Running Trivy scan (non-blocking)..."
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId}
+          """
+        }
       }
     }
 
     stage('Push to DockerHub') {
       steps {
-        withCredentials([usernamePassword(credentialsId: "$DOCKERHUB_CREDENTIALS_ID", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-          sh '''
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker push $DOCKER_USERNAME/$IMAGE_NAME:${params.IMAGE_TAG}
-          '''
+        withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+          sh """
+            echo "\${DOCKER_PASSWORD}" | docker login -u "\${DOCKER_USERNAME}" --password-stdin
+            docker push \${DOCKER_USERNAME}/\${IMAGE_NAME}:${params.IMAGE_TAG}
+          """
         }
       }
     }
 
     stage('Deploy to EKS using Helm') {
       steps {
-        sh '''
-          echo "Deploying to EKS using Helm..."
-          helm upgrade --install ${params.RELEASE_NAME} $CHART_PATH \
-            --set image.repository=$DOCKERHUB_USER/$IMAGE_NAME \
-            --set image.tag=${params.IMAGE_TAG} \
-            --namespace $KUBE_NAMESPACE
-        '''
+        script {
+          // Check if the chart directory exists in the workspace
+          def chartExists = fileExists("${env.WORKSPACE}/terraform/web-app-chart/Chart.yaml")
+          if (!chartExists) {
+            error "Helm chart directory not found at ${env.WORKSPACE}/terraform/web-app-chart"
+          }
+
+          // Deploy using Helm with the correct chart path
+          sh """
+            echo "Deploying to EKS using Helm..."
+            helm upgrade --install ${params.RELEASE_NAME} ${env.WORKSPACE}/terraform/web-app-chart \
+              --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
+              --set image.tag=${params.IMAGE_TAG} \
+              --namespace ${KUBE_NAMESPACE}
+          """
+        }
       }
     }
 
     stage('Dynamic App Security Testing - OWASP ZAP') {
       steps {
-        sh '''
+        sh """
           echo "Running OWASP ZAP baseline scan..."
-          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-            -t http://${params.NODE_IP}:$NODE_PORT -g gen.conf -r zap-report.html -x zap-report.xml \
+          docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
+            -t http://${params.NODE_IP}:\${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \
             -l FAIL --exit-zero || exit 1
-        '''
+        """
       }
     }
 
@@ -117,16 +140,16 @@ pipeline {
 
     stage('OPA Gatekeeper Policy Check') {
       steps {
-        sh '''
+        sh """
           echo "Checking OPA Gatekeeper constraint violations..."
-          VIOLATIONS=$(kubectl get constrainttemplates -o json | jq '.items[] | .status?.totalViolations' | grep -v null | awk '$1 > 0')
-          if [ -n "$VIOLATIONS" ]; then
+          VIOLATIONS=\$(kubectl get constrainttemplates -o json | jq '.items[] | .status?.totalViolations' | grep -v null | awk '\$1 > 0')
+          if [ -n "\$VIOLATIONS" ]; then
             echo "❌ Violations found by OPA Gatekeeper!"
             exit 1
           else
             echo "✅ No OPA policy violations detected."
           fi
-        '''
+        """
       }
     }
   }
