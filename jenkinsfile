@@ -112,12 +112,23 @@ pipeline {
 
     stage('Dynamic App Security Testing - OWASP ZAP') {
       steps {
-        sh """
+        script {
+          def zapReportPath = "${env.WORKSPACE}/zap-report.html"
+          def zapReportXmlPath = "${env.WORKSPACE}/zap-report.xml"
           echo "Running OWASP ZAP baseline scan..."
-          docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-            -t http://${params.NODE_IP}:${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \
-            -l FAIL --exit-zero || exit 1
-        """
+
+          // Ensure directory permissions for mounted volumes
+          sh """
+            echo "Ensuring correct directory permissions for ZAP scan..."
+            sudo chmod -R 777 ${env.WORKSPACE}
+          """
+
+          sh """
+            docker run -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
+              -t http://${params.NODE_IP}:${NODE_PORT} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
+              -l FAIL --exit-zero || exit 1
+          """
+        }
       }
     }
 
