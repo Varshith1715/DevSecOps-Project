@@ -14,7 +14,7 @@ pipeline {
     KUBE_NAMESPACE = "default"
     CHART_PATH = "${env.WORKSPACE}/terraform/web-app-chart"
     NODE_PORT = "30080"
-    KUBE_CONFIG_PATH = "/var/lib/jenkins/.kube/config"  // Adding the kubeconfig path as an environment variable
+    KUBE_CONFIG_PATH = "/var/lib/jenkins/.kube/config"
   }
 
   stages {
@@ -93,20 +93,18 @@ pipeline {
     stage('Deploy to EKS using Helm') {
       steps {
         script {
-          // Check if the chart directory exists in the workspace
-          def chartExists = fileExists("${env.WORKSPACE}/terraform/web-app-chart/Chart.yaml")
+          def chartExists = fileExists("${CHART_PATH}/Chart.yaml")
           if (!chartExists) {
-            error "Helm chart directory not found at ${env.WORKSPACE}/terraform/web-app-chart"
+            error "Helm chart directory not found at ${CHART_PATH}"
           }
 
-          // Deploy using Helm with the correct chart path and kubeconfig
           sh """
             echo "Deploying to EKS using Helm..."
-            helm upgrade --install ${params.RELEASE_NAME} ${env.WORKSPACE}/terraform/web-app-chart \
+            helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
               --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
               --set image.tag=${params.IMAGE_TAG} \
               --namespace ${KUBE_NAMESPACE} \
-              --kubeconfig ${env.KUBE_CONFIG_PATH}
+              --kubeconfig ${KUBE_CONFIG_PATH}
           """
         }
       }
@@ -117,7 +115,7 @@ pipeline {
         sh """
           echo "Running OWASP ZAP baseline scan..."
           docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-            -t http://${params.NODE_IP}:\${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \
+            -t http://${params.NODE_IP}:${NODE_PORT} -g gen.conf -r zap-report.html -x zap-report.xml \
             -l FAIL --exit-zero || exit 1
         """
       }
@@ -125,7 +123,7 @@ pipeline {
 
     stage('Install OPA Gatekeeper') {
       steps {
-        sh '''
+        sh """
           echo "Installing OPA Gatekeeper if not already present..."
           if ! kubectl get pods -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH} &> /dev/null; then
             kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml --kubeconfig ${KUBE_CONFIG_PATH}
@@ -133,19 +131,19 @@ pipeline {
           else
             echo "OPA Gatekeeper is already installed."
           fi
-        '''
+        """
       }
     }
 
     stage('Apply OPA Constraints & Templates') {
       steps {
-        sh '''
+        sh """
           echo "Applying OPA policies..."
           kubectl apply -f opa/policies/privileged-template.yaml --kubeconfig ${KUBE_CONFIG_PATH}
           kubectl apply -f opa/policies/privileged-constraint.yaml --kubeconfig ${KUBE_CONFIG_PATH}
           kubectl apply -f opa/policies/trusted-registry-template.yaml --kubeconfig ${KUBE_CONFIG_PATH}
           kubectl apply -f opa/policies/trusted-registry-constraint.yaml --kubeconfig ${KUBE_CONFIG_PATH}
-        '''
+        """
       }
     }
 
