@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: {{ .Values.service.name }}
 spec:
-  type: NodePort
+  type: {{ .Values.service.type }}
   selector:
     app: {{ .Values.app.name }}
   ports:
     - protocol: TCP
       port: 80
       targetPort: 8080
-      nodePort: {{ .Values.service.nodePort }}
+
