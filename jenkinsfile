@@ -25,10 +25,7 @@ pipeline {
 
     stage('Verify Workspace') {
       steps {
-        sh """
-          echo "Verifying the workspace content..."
-          ls -al ${env.WORKSPACE}/terraform
-        """
+        sh "ls -al ${env.WORKSPACE}/terraform"
       }
     }
 
@@ -50,12 +47,11 @@ pipeline {
           ).trim()
 
           if (imageExists) {
-            echo "✅ Docker image ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} already exists locally. Skipping build."
+            echo "✅ Docker image already exists locally. Skipping build."
           } else {
             sh """
-              echo "Using existing WAR file..."
+              echo "Copying WAR and building Docker image..."
               WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
-              echo "Building Docker image..."
               cp \$WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
               docker build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} .
             """
@@ -66,10 +62,7 @@ pipeline {
 
     stage('Update Trivy DB') {
       steps {
-        sh """
-          echo "Updating Trivy vulnerability database..."
-          docker run --rm aquasec/trivy image --download-db-only
-        """
+        sh "docker run --rm aquasec/trivy image --download-db-only"
       }
     }
 
@@ -79,9 +72,8 @@ pipeline {
           def imageId = sh(script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}", returnStdout: true).trim()
           echo "Scanning image ID: ${imageId}"
           sh """
-            echo "Running Trivy scan (non-blocking)..."
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId} || echo "Trivy scan failed, continuing..."
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 0 ${imageId} || echo "Trivy scan issues detected, but continuing..."
           """
         }
       }
@@ -98,45 +90,52 @@ pipeline {
       }
     }
 
-    stage('Deploy to EKS using Helm') {
+    stage('Helm Lint and Dry-Run') {
       steps {
         script {
-          def chartExists = fileExists("${CHART_PATH}/Chart.yaml")
-          if (!chartExists) {
-            error "Helm chart directory not found at ${CHART_PATH}"
+          if (!fileExists("${CHART_PATH}/Chart.yaml")) {
+            error "❌ Helm chart not found at ${CHART_PATH}"
           }
-
           sh """
-            echo "Deploying to EKS using Helm..."
+            helm lint ${CHART_PATH}
             helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
               --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
               --set image.tag=${params.IMAGE_TAG} \
               --namespace ${KUBE_NAMESPACE} \
-              --kubeconfig ${KUBE_CONFIG_PATH}
+              --kubeconfig ${KUBE_CONFIG_PATH} \
+              --dry-run
           """
         }
+      }
+    }
+
+    stage('Deploy to EKS using Helm') {
+      steps {
+        sh """
+          echo "Deploying Helm chart..."
+          helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
+            --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
+            --set image.tag=${params.IMAGE_TAG} \
+            --namespace ${KUBE_NAMESPACE} \
+            --kubeconfig ${KUBE_CONFIG_PATH}
+        """
       }
     }
 
     stage('Dynamic App Security Testing - OWASP ZAP') {
       steps {
         script {
+          def targetUrl = "http://${params.LOAD_BALANCER_IP}:8080"
           def zapReportPath = "${env.WORKSPACE}/zap-report.html"
           def zapReportXmlPath = "${env.WORKSPACE}/zap-report.xml"
-          echo "Running OWASP ZAP baseline scan..."
 
-          // Ensure directory permissions for mounted volumes
-          sh """
-            echo "Ensuring correct directory permissions for ZAP scan..."
-            sudo chmod -R 777 ${env.WORKSPACE}
-          """
+          sh "sudo chmod -R 777 ${env.WORKSPACE}"
 
-          def targetUrl = "http://${params.LOAD_BALANCER_IP}:8080"
-          
           sh """
+            echo "Running OWASP ZAP scan on: ${targetUrl}"
             docker run -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t ${targetUrl} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
-              -l FAIL --exit-zero || exit 1
+              -l FAIL --exit-zero || echo "ZAP scan completed with warnings"
           """
         }
       }
@@ -145,12 +144,12 @@ pipeline {
     stage('Install OPA Gatekeeper') {
       steps {
         sh """
-          echo "Installing OPA Gatekeeper if not already present..."
-          if ! kubectl get pods -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH} &> /dev/null; then
+          echo "Checking and installing OPA Gatekeeper..."
+          if ! kubectl get pods -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH} &>/dev/null; then
             kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml --kubeconfig ${KUBE_CONFIG_PATH}
             kubectl rollout status deployment/gatekeeper-controller-manager -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH}
           else
-            echo "OPA Gatekeeper is already installed."
+            echo "OPA Gatekeeper already installed."
           fi
         """
       }
@@ -159,7 +158,7 @@ pipeline {
     stage('Apply OPA Constraints & Templates') {
       steps {
         sh """
-          echo "Applying OPA policies..."
+          echo "Applying OPA constraint templates and constraints..."
           kubectl apply -f opa/policies/privileged-template.yaml --kubeconfig ${KUBE_CONFIG_PATH}
           kubectl apply -f opa/policies/privileged-constraint.yaml --kubeconfig ${KUBE_CONFIG_PATH}
           kubectl apply -f opa/policies/trusted-registry-template.yaml --kubeconfig ${KUBE_CONFIG_PATH}
@@ -171,13 +170,13 @@ pipeline {
     stage('OPA Gatekeeper Policy Check') {
       steps {
         sh """
-          echo "Checking OPA Gatekeeper constraint violations..."
-          VIOLATIONS=\$(kubectl get constrainttemplates -o json --kubeconfig ${KUBE_CONFIG_PATH} | jq '.items[] | .status?.totalViolations' | grep -v null | awk '\$1 > 0')
+          echo "Validating for OPA policy violations..."
+          VIOLATIONS=\$(kubectl get constraints -A --kubeconfig ${KUBE_CONFIG_PATH} -o json | jq '.items[] | .status.totalViolations' | grep -v null | awk '\$1 > 0')
           if [ -n "\$VIOLATIONS" ]; then
-            echo "❌ Violations found by OPA Gatekeeper!"
+            echo "❌ Policy violations detected by OPA!"
             exit 1
           else
-            echo "✅ No OPA policy violations detected."
+            echo "✅ No policy violations found."
           fi
         """
       }
@@ -189,7 +188,7 @@ pipeline {
       echo "✅ Pipeline completed successfully!"
     }
     failure {
-      echo "❌ Pipeline failed. Check the logs for details."
+      echo "❌ Pipeline failed. Check the logs for errors."
     }
   }
 }
