@@ -151,6 +151,20 @@ pipeline {
           else
             echo "OPA Gatekeeper already installed."
           fi
+
+          echo "✅ Waiting for ConstraintTemplate CRD to be available..."
+          ATTEMPTS=0
+          until kubectl get crd constrainttemplates.templates.gatekeeper.sh --kubeconfig ${KUBE_CONFIG_PATH} &>/dev/null || [ \$ATTEMPTS -eq 10 ]; do
+            echo "Waiting for ConstraintTemplate CRD..."
+            ATTEMPTS=\$((ATTEMPTS+1))
+            sleep 10
+          done
+
+          if ! kubectl get crd constrainttemplates.templates.gatekeeper.sh --kubeconfig ${KUBE_CONFIG_PATH} &>/dev/null; then
+            echo "❌ ConstraintTemplate CRD not available after waiting. Failing..."
+            exit 1
+          fi
+          echo "✅ ConstraintTemplate CRD is ready."
         """
       }
     }
