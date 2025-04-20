@@ -4,9 +4,9 @@ app:
 replicaCount: 2
 
 image:
-  repository: Varshith999/taxi-booking
+  repository: varshith999/taxi-booking
   tag: "latest"
 
 service:
   name: taxi-booking-svc
-  nodePort: 30080
+  type: LoadBalancer  
