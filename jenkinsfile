@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
-    string(name: 'NODE_IP', defaultValue: '98.81.156.48', description: 'Public IP of NodePort service')
+    string(name: 'LOAD_BALANCER_IP', defaultValue: '', description: 'Public IP or DNS of LoadBalancer service')
     string(name: 'RELEASE_NAME', defaultValue: 'taxi-booking', description: 'Helm release name')
   }
 
@@ -13,7 +13,6 @@ pipeline {
     DOCKERHUB_USER = 'varshith999'
     KUBE_NAMESPACE = "default"
     CHART_PATH = "${env.WORKSPACE}/terraform/web-app-chart"
-    NODE_PORT = "30080"
     KUBE_CONFIG_PATH = "/var/lib/jenkins/.kube/config"
   }
 
@@ -132,9 +131,12 @@ pipeline {
             sudo chmod -R 777 ${env.WORKSPACE}
           """
 
+          // Replace NodePort with LoadBalancer IP or DNS
+          def targetUrl = "http://${params.LOAD_BALANCER_IP}:8080"
+          
           sh """
             docker run -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-              -t http://${params.NODE_IP}:${NODE_PORT} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
+              -t ${targetUrl} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
               -l FAIL --exit-zero || exit 1
           """
         }
