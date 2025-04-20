@@ -131,7 +131,6 @@ pipeline {
             sudo chmod -R 777 ${env.WORKSPACE}
           """
 
-          // Replace NodePort with LoadBalancer IP or DNS
           def targetUrl = "http://${params.LOAD_BALANCER_IP}:8080"
           
           sh """
