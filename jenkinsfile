@@ -128,20 +128,25 @@ pipeline {
 
     stage('DAST Scan with OWASP ZAP') {
       steps {
-        echo "🔒 Running OWASP ZAP scan on: $ZAP_TARGET"
+        echo "🔒 Running OWASP ZAP scan on: ${env.ZAP_TARGET}"
         sh """
-          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-          -t $ZAP_TARGET \
-          -g gen.conf \
-          -r /zap/wrk/zap-report.html \
-          -x /zap/wrk/zap-report.xml \
-          --auto \
-          -l FAIL \
+          docker run -v \$(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \\
+          -t ${env.ZAP_TARGET} \\
+          -g gen.conf \\
+          -r /zap/wrk/zap-report.html \\
+          -x /zap/wrk/zap-report.xml \\
+          --auto \\
+          -l FAIL \\
           --exit-zero || echo "⚠️ ZAP scan failed or found issues, continuing..."
-         """
+        """
+      }
+      post {
+        always {
+          archiveArtifacts artifacts: 'zap-report.*', allowEmptyArchive: true
         }
       }
     }
+
     stage('Install OPA Gatekeeper') {
       steps {
         sh """
