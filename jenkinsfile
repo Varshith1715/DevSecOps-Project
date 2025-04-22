@@ -131,7 +131,7 @@ pipeline {
                     echo "🐳 Starting OWASP ZAP Baseline Scan in Docker..."
                     docker run --rm \
                         -v \$(pwd):/zap/wrk/:rw \
-                        -t owasp/zap2docker-stable zap-baseline.py \
+                        -t zaproxy/zap-stable:latest zap-baseline.py \
                         -t ${ZAP_TARGET} \
                         -g gen.conf \
                         -r zap-report.html \
