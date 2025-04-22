@@ -15,7 +15,7 @@ pipeline {
         CHART_PATH               = "${env.WORKSPACE}/terraform/web-app-chart"
         KUBE_CONFIG_PATH         = "/var/lib/jenkins/.kube/config"
         ZAP_TARGET               = "http://${params.LOAD_BALANCER_IP}:8080"
-        ZAP_PATH                 = '/var/lib/jenkins/workspace'  // Update to the actual path of ZAP installation
+        ZAP_PATH                 = '/var/lib/jenkins/workspace/zap'  // Update to the actual path of ZAP installation
     }
 
     stages {
