@@ -14,6 +14,7 @@ pipeline {
     KUBE_NAMESPACE = "default"
     CHART_PATH = "${env.WORKSPACE}/terraform/web-app-chart"
     KUBE_CONFIG_PATH = "/var/lib/jenkins/.kube/config"
+    ZAP_TARGET = "http://a3ab7de2f5bf24581a97de6ad05ad917-94003071.us-east-1.elb.amazonaws.com:8080"
   }
 
   stages {
@@ -125,23 +126,22 @@ pipeline {
       }
     }
 
-    stage('Dynamic App Security Testing - OWASP ZAP') {
+    stage('DAST Scan with OWASP ZAP') {
       steps {
-        script {
-          def targetUrl = "http://${params.LOAD_BALANCER_IP}:8080"
-          def zapReportPath = "${env.WORKSPACE}/zap-report.html"
-          def zapReportXmlPath = "${env.WORKSPACE}/zap-report.xml"
-
-          sh """
-            echo "🔒 Running OWASP ZAP scan on: ${targetUrl}"
-            docker run -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-              -t ${targetUrl} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
-              -l FAIL --exit-zero || echo "⚠️ ZAP scan failed or found issues, continuing..."
-          """
+        echo "🔒 Running OWASP ZAP scan on: $ZAP_TARGET"
+        sh """
+          docker run -v $(pwd):/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
+          -t $ZAP_TARGET \
+          -g gen.conf \
+          -r /zap/wrk/zap-report.html \
+          -x /zap/wrk/zap-report.xml \
+          --auto \
+          -l FAIL \
+          --exit-zero || echo "⚠️ ZAP scan failed or found issues, continuing..."
+         """
         }
       }
     }
-
     stage('Install OPA Gatekeeper') {
       steps {
         sh """
