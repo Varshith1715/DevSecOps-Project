@@ -23,6 +23,7 @@ pipeline {
                 checkout scm
             }
         }
+
         stage('Static Code Analysis - Semgrep') {
             steps {
                 sh '''
@@ -44,9 +45,13 @@ pipeline {
                         echo "✅ Docker image already exists locally. Skipping build."
                     } else {
                         sh """
-                            echo "📦 Building Docker image..."
-                            WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
-                            cp \$WAR_FILE ./ || { echo "❌ WAR file not found!"; exit 1; }
+                            echo "📦 Building Docker image from WAR..."
+                            WAR_FILE_PATH="taxi-booking/target/taxi-booking-1.0.1.war"
+                            if [ ! -f \$WAR_FILE_PATH ]; then
+                                echo "❌ WAR file not found at \$WAR_FILE_PATH"
+                                exit 1
+                            fi
+                            cp \$WAR_FILE_PATH ./app.war
                             docker build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} .
                         """
                     }
