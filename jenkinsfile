@@ -131,7 +131,7 @@ pipeline {
                 echo "🔒 Running OWASP ZAP scan on: ${env.ZAP_TARGET}"
                 sh """
                     docker run --rm -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-                        -t ${ZAP_TARGET} -g gen.conf \
+                        -t ${ZAP_TARGET} -g /tmp/gen.conf \
                         -r /zap/wrk/zap-report.html \
                         -x /zap/wrk/zap-report.xml \
                         --auto -l FAIL -I
