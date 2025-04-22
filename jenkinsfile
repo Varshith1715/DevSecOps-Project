@@ -8,13 +8,13 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME            = "taxi-booking"
+        IMAGE_NAME               = "taxi-booking"
         DOCKERHUB_CREDENTIALS_ID = 'dockerhub'
-        DOCKERHUB_USER        = 'varshith999'
-        KUBE_NAMESPACE        = "default"
-        CHART_PATH            = "${env.WORKSPACE}/terraform/web-app-chart"
-        KUBE_CONFIG_PATH      = "/var/lib/jenkins/.kube/config"
-        ZAP_TARGET            = "http://a3ab7de2f5bf24581a97de6ad05ad917-94003071.us-east-1.elb.amazonaws.com:8080"
+        DOCKERHUB_USER           = 'varshith999'
+        KUBE_NAMESPACE           = "default"
+        CHART_PATH               = "${env.WORKSPACE}/terraform/web-app-chart"
+        KUBE_CONFIG_PATH         = "/var/lib/jenkins/.kube/config"
+        ZAP_TARGET               = "http://${params.LOAD_BALANCER_IP}:8080"
     }
 
     stages {
@@ -135,7 +135,7 @@ pipeline {
                         -r /zap/wrk/zap-report.html \
                         -x /zap/wrk/zap-report.xml \
                         --auto -l FAIL -I
-                    echo "Reports should be at: ${env.WORKSPACE}/zap-report.html and ${env.WORKSPACE}/zap-report.xml"
+                    echo "📄 Reports generated at: ${env.WORKSPACE}/zap-report.html and zap-report.xml"
                     ls -la ${env.WORKSPACE}/zap-report.*
                 """
             }
