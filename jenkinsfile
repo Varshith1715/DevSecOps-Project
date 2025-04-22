@@ -206,7 +206,7 @@ pipeline {
         success {
             echo "✅ Pipeline completed successfully!"
             slackSend (
-                channel: 'ci-cd-pipeline',
+                channel: 'ci-cd-pipelines',
                 color: 'good',
                 message: "✅ *Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'* succeeded on `${env.NODE_NAME}`.\n<${env.BUILD_URL}|Click here> for details."
             )
@@ -214,7 +214,7 @@ pipeline {
         failure {
             echo "❌ Pipeline failed. Check the logs for errors."
             slackSend (
-                channel: 'ci-cd-pipeline',
+                channel: 'ci-cd-pipelines',
                 color: 'danger',
                 message: "❌ *Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'* failed on `${env.NODE_NAME}`.\n<${env.BUILD_URL}|Click here> to see the failure logs."
             )
