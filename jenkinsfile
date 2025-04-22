@@ -15,6 +15,7 @@ pipeline {
         CHART_PATH               = "${env.WORKSPACE}/terraform/web-app-chart"
         KUBE_CONFIG_PATH         = "/var/lib/jenkins/.kube/config"
         ZAP_TARGET               = "http://${params.LOAD_BALANCER_IP}:8080"
+        ZAP_PATH                 = '/var/lib/jenkins/workspace'  // Update to the actual path of ZAP installation
     }
 
     stages {
@@ -128,13 +129,14 @@ pipeline {
             steps {
                 echo "🔒 Running OWASP ZAP scan on: ${env.ZAP_TARGET}"
                 sh """
-                    docker run --rm -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
-                        -t ${ZAP_TARGET} -g /tmp/gen.conf \
-                        -r /zap/wrk/zap-report.html \
-                        -x /zap/wrk/zap-report.xml \
+                    echo "🔍 Starting ZAP in daemon mode..."
+                    ${ZAP_PATH}/zap.sh -daemon -config api.disablekey=true
+                    echo "🔍 Running ZAP scan..."
+                    ${ZAP_PATH}/zap-baseline.py -t ${ZAP_TARGET} -g /tmp/gen.conf \
+                        -r /tmp/zap-report.html -x /tmp/zap-report.xml \
                         --auto -l FAIL -I
-                    echo "📄 Reports generated at: ${env.WORKSPACE}/zap-report.html and zap-report.xml"
-                    ls -la ${env.WORKSPACE}/zap-report.*
+                    echo "📄 Reports generated at: /tmp/zap-report.html"
+                    mv /tmp/zap-report.* ${WORKSPACE}/
                 """
             }
             post {
