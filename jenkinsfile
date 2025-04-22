@@ -23,13 +23,6 @@ pipeline {
                 checkout scm
             }
         }
-
-        stage('Verify Workspace') {
-            steps {
-                sh "ls -al ${env.WORKSPACE}/terraform"
-            }
-        }
-
         stage('Static Code Analysis - Semgrep') {
             steps {
                 sh '''
