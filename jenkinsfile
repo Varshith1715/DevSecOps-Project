@@ -129,7 +129,6 @@ pipeline {
           def zapReportPath = "${env.WORKSPACE}/zap-report.html"
           def zapReportXmlPath = "${env.WORKSPACE}/zap-report.xml"
 
-          sh "sudo chown -R jenkins:jenkins ${env.WORKSPACE}"
 
           sh """
             echo "Running OWASP ZAP scan on: ${targetUrl}"
