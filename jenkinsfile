@@ -137,7 +137,6 @@ pipeline {
           -x /zap/wrk/zap-report.xml \\
           --auto \\
           -l FAIL \\
-          --exit-zero || echo "⚠️ ZAP scan failed or found issues, continuing..."
         """
       }
       post {
