@@ -3,7 +3,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: 'latest', description: 'Docker image tag')
-    string(name: 'LOAD_BALANCER_IP', defaultValue: '', description: 'Public IP or DNS of LoadBalancer service')
+    string(name: 'LOAD_BALANCER_IP', defaultValue: 'a3ab7de2f5bf24581a97de6ad05ad917-94003071.us-east-1.elb.amazonaws.com', description: 'Public IP or DNS of LoadBalancer service')
     string(name: 'RELEASE_NAME', defaultValue: 'taxi-booking', description: 'Helm release name')
   }
 
