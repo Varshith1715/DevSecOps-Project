@@ -90,27 +90,6 @@ pipeline {
             }
         }
 
-        stage('Helm Lint and Dry-Run') {
-            steps {
-                script {
-                    if (!fileExists("${CHART_PATH}/Chart.yaml")) {
-                        error "❌ Helm chart not found at ${CHART_PATH}"
-                    }
-
-                    sh """
-                        echo "🧪 Linting and dry-running Helm chart..."
-                        helm lint ${CHART_PATH} || echo "⚠️ Helm lint warnings"
-                        helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
-                            --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
-                            --set image.tag=${params.IMAGE_TAG} \
-                            --namespace ${KUBE_NAMESPACE} \
-                            --kubeconfig ${KUBE_CONFIG_PATH} \
-                            --dry-run || echo "⚠️ Helm dry-run failed, continuing..."
-                    """
-                }
-            }
-        }
-
         stage('Deploy to EKS using Helm') {
             steps {
                 sh """
