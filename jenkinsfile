@@ -32,8 +32,8 @@ pipeline {
     stage('Static Code Analysis - Semgrep') {
       steps {
         sh '''
-          echo "Running Semgrep..."
-          docker run --rm -v $(pwd):/src returntocorp/semgrep semgrep scan --config=auto /src || echo "⚠️ Semgrep failed, moving on..."
+          echo "🔍 Running Semgrep..."
+          docker run --rm -v $(pwd):/src returntocorp/semgrep semgrep scan --config=auto /src || echo "⚠️ Semgrep scan failed or had issues."
         '''
       }
     }
@@ -50,9 +50,9 @@ pipeline {
             echo "✅ Docker image already exists locally. Skipping build."
           } else {
             sh """
-              echo "Copying WAR and building Docker image..."
+              echo "📦 Building Docker image..."
               WAR_FILE="taxi-booking/target/taxi-booking-1.0.1.war"
-              cp \$WAR_FILE ./ || { echo "WAR file not found!"; exit 1; }
+              cp \$WAR_FILE ./ || { echo "❌ WAR file not found!"; exit 1; }
               docker build -t ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG} .
             """
           }
@@ -70,10 +70,10 @@ pipeline {
       steps {
         script {
           def imageId = sh(script: "docker images -q ${DOCKERHUB_USER}/${IMAGE_NAME}:${params.IMAGE_TAG}", returnStdout: true).trim()
-          echo "Scanning image ID: ${imageId}"
+          echo "🔍 Scanning image ID: ${imageId}"
           sh """
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ${imageId} || echo "⚠️ Trivy scan issues found, continuing..."
+              aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ${imageId} || echo "⚠️ Trivy scan found issues or failed. Proceeding anyway."
           """
         }
       }
@@ -83,6 +83,7 @@ pipeline {
       steps {
         withCredentials([usernamePassword(credentialsId: "${DOCKERHUB_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
           sh """
+            echo "🔐 Logging in to DockerHub..."
             echo "\${DOCKER_PASSWORD}" | docker login -u "\${DOCKER_USERNAME}" --password-stdin
             docker push \${DOCKER_USERNAME}/\${IMAGE_NAME}:${params.IMAGE_TAG}
           """
@@ -96,7 +97,9 @@ pipeline {
           if (!fileExists("${CHART_PATH}/Chart.yaml")) {
             error "❌ Helm chart not found at ${CHART_PATH}"
           }
+
           sh """
+            echo "🧪 Linting and dry-running Helm chart..."
             helm lint ${CHART_PATH} || echo "⚠️ Helm lint warnings"
             helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
               --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
@@ -112,7 +115,7 @@ pipeline {
     stage('Deploy to EKS using Helm') {
       steps {
         sh """
-          echo "Deploying Helm chart..."
+          echo "🚀 Deploying Helm chart to EKS..."
           helm upgrade --install ${params.RELEASE_NAME} ${CHART_PATH} \
             --set image.repository=${DOCKERHUB_USER}/${IMAGE_NAME} \
             --set image.tag=${params.IMAGE_TAG} \
@@ -129,9 +132,8 @@ pipeline {
           def zapReportPath = "${env.WORKSPACE}/zap-report.html"
           def zapReportXmlPath = "${env.WORKSPACE}/zap-report.xml"
 
-
           sh """
-            echo "Running OWASP ZAP scan on: ${targetUrl}"
+            echo "🔒 Running OWASP ZAP scan on: ${targetUrl}"
             docker run -v ${env.WORKSPACE}:/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy zap-baseline.py \
               -t ${targetUrl} -g gen.conf -r ${zapReportPath} -x ${zapReportXmlPath} \
               -l FAIL --exit-zero || echo "⚠️ ZAP scan failed or found issues, continuing..."
@@ -143,18 +145,17 @@ pipeline {
     stage('Install OPA Gatekeeper') {
       steps {
         sh """
-          echo "Checking and installing OPA Gatekeeper..."
+          echo "🔐 Installing OPA Gatekeeper if not already installed..."
           if ! kubectl get pods -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH} &>/dev/null; then
             kubectl apply -f https://raw.githubusercontent.com/open-policy-agent/gatekeeper/release-3.14/deploy/gatekeeper.yaml --kubeconfig ${KUBE_CONFIG_PATH}
             kubectl rollout status deployment/gatekeeper-controller-manager -n gatekeeper-system --kubeconfig ${KUBE_CONFIG_PATH}
           else
-            echo "OPA Gatekeeper already installed."
+            echo "✅ OPA Gatekeeper already installed."
           fi
 
-          echo "✅ Waiting for ConstraintTemplate CRD to be available..."
           ATTEMPTS=0
           until kubectl get crd constrainttemplates.templates.gatekeeper.sh --kubeconfig ${KUBE_CONFIG_PATH} &>/dev/null || [ \$ATTEMPTS -eq 10 ]; do
-            echo "Waiting for ConstraintTemplate CRD..."
+            echo "⏳ Waiting for ConstraintTemplate CRD..."
             ATTEMPTS=\$((ATTEMPTS+1))
             sleep 10
           done
@@ -171,7 +172,7 @@ pipeline {
     stage('Apply OPA Constraints & Templates') {
       steps {
         sh """
-          echo "Applying OPA constraint templates and constraints..."
+          echo "📜 Applying OPA constraint templates and constraints..."
           kubectl apply -f opa/policies/privileged-template.yaml --kubeconfig ${KUBE_CONFIG_PATH} || true
           kubectl apply -f opa/policies/privileged-constraint.yaml --kubeconfig ${KUBE_CONFIG_PATH} || true
           kubectl apply -f opa/policies/trusted-registry-template.yaml --kubeconfig ${KUBE_CONFIG_PATH} || true
@@ -183,7 +184,7 @@ pipeline {
     stage('OPA Gatekeeper Policy Check') {
       steps {
         sh """
-          echo "Validating for OPA policy violations..."
+          echo "🔍 Checking for OPA policy violations..."
           VIOLATIONS=\$(kubectl get constraints -A --kubeconfig ${KUBE_CONFIG_PATH} -o json | jq '.items[] | .status.totalViolations' | grep -v null | awk '\$1 > 0')
           if [ -n "\$VIOLATIONS" ]; then
             echo "⚠️ Policy violations found, skipping failure..."
