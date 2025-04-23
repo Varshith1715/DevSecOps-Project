@@ -151,11 +151,35 @@ This screenshot shows the final status of the Jenkins pipeline execution, includ
 
 ![jenkins-build-summary](https://github.com/user-attachments/assets/09146e8b-520b-435c-89e4-99032645658c)
 
+---
+
 
 ## Slack Notification
 
 
 
 ![slack](https://github.com/user-attachments/assets/28e5d095-61aa-442c-aed9-965d632f8cfe)
+
+
+---
+
+## Web App (Accessed via Load Balancer)
+
+
+### Home Page  
+
+
+
+![web-app-1](https://github.com/user-attachments/assets/a1fe68e7-dc61-4680-b206-abd29f1671cc)
+
+
+
+### Booking Page  
+
+
+
+![web-app-2](https://github.com/user-attachments/assets/03b90740-a08c-43a6-a774-377e013e6ddb)
+
+
 
 
