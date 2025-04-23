@@ -3,13 +3,12 @@
 
 This project implements a secure and scalable CI/CD pipeline for a Java-based Taxi Booking application using Jenkins, Docker, Kubernetes (Amazon EKS), and Terraform. It integrates DevSecOps best practices including static analysis, container vulnerability scanning, dynamic application testing, and Kubernetes policy enforcement.
 
-![Architecture Diagram](./A_digital_diagram_showcases_a_DevSecOps_CI/CD_Pipe.png)
+![Architecture Diagram](https://github.com/user-attachments/assets/6e3a1736-78d9-4b03-b6f8-088c24f8c595)
 
 ---
 
 ## 📦 Repository Structure
 ```
-.
 ├── opa/
 │   └── policies/
 │       ├── privileged-constraint.yaml
@@ -36,9 +35,14 @@ This project implements a secure and scalable CI/CD pipeline for a Java-based Ta
 │   └── templates/
 │       ├── deployment.yaml
 │       └── service.yaml
+├── setup-docs/
+│   └── installation.md
+├── screenshots/
+│   └── screenshots.md
 ├── Dockerfile
 ├── Jenkinsfile
 └── README.md
+
 ```
 
 ---
@@ -157,6 +161,9 @@ Detailed instructions for installing Jenkins, Docker, Helm, kubectl, and configu
 
 ---
 
+## 📱 Screenshots
+
+> For a detailed visual walkthrough, check the full [📷 Screenshots Gallery](./screenshots/screenshots.md).
 ---
 
 ## ✉️ Contact
