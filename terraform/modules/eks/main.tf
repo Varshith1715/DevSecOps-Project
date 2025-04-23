@@ -79,6 +79,10 @@ resource "aws_eks_node_group" "eks_nodes" {
   }
 
   instance_types = [var.instance_type]
+  tags = {
+    "Name"       = "${var.name_prefix}-eks-node"
+  }
+
 
   depends_on = [
     aws_iam_role_policy_attachment.eks_worker_node_policy,
