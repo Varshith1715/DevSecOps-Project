@@ -4,7 +4,6 @@ resource "aws_security_group" "jenkins_sg" {
   vpc_id      = var.vpc_id
 
   ingress {
-    # Allow SSH access (for management)
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -28,7 +27,6 @@ resource "aws_security_group" "jenkins_sg" {
 
 
   egress {
-    # Allow all outbound traffic (you may limit it as needed)
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
